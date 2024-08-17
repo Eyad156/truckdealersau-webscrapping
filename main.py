@@ -1,6 +1,7 @@
 import requests as req
 from bs4 import BeautifulSoup as soup
 import time
+import csv
 
 def main():
     urls = [
@@ -23,6 +24,8 @@ def main():
         'Referer': 'https://www.google.com/',
     }
     
+    all_data = []  # List to store all the scraped data
+
     for url in urls:
         try:
             response = req.get(url, headers=headers, timeout=10)
@@ -37,27 +40,34 @@ def main():
                     name = post.find("h2", class_="details-title")
                     categories = post.find("span", class_="categories")
                     dealer_id = post.find("div", class_="serp-dealer-license")
-                    dealer_used = post.find("div",class_="attribute dealer_used")
-                    dealer_new = post.find("div",class_="attribute dealer_new")
-                    year = post.find("div",class_="attribute-val")
-                    # Get text if the elements are found
-                    if name:
-                        print("Name:", name.get_text(strip=True))
-                    else:
-                        print(f"Could not find the name in a post from {url}")
-                        
-                    if categories:
-                        print("Categories:", categories.get_text(strip=True))
+                    dealer_used = post.find("div", class_="attribute dealer_used")
+                    dealer_new = post.find("div", class_="attribute dealer_new")
                     
-                    if dealer_id:
-                        print(dealer_id.get_text(strip=True))
-                    if dealer_used:
-                        print(dealer_used.get_text(strip=True))
+                    # Handle multiple elements with the same class
+                    attributes = post.find_all("div", class_="attribute")
+                    year, odometer, state = None, None, None
+                    
+                    # Extract specific attributes based on context or label
+                    for attr in attributes:
+                        if "Year:" in attr.get_text():
+                            year = attr.get_text(strip=True)
+                        elif "Odometer:" in attr.get_text():
+                            odometer = attr.get_text(strip=True)
+                        elif "State:" in attr.get_text():
+                            state = attr.get_text(strip=True)
 
-                    if year:
-                        print("Year:",year)
-                    print("-" * 40)
-                    
+                    # Append the data to the all_data list as a dictionary
+                    all_data.append({
+                        "Name": name.get_text(strip=True) if name else "N/A",
+                        "Categories": categories.get_text(strip=True) if categories else "N/A",
+                        "Dealer ID": dealer_id.get_text(strip=True) if dealer_id else "N/A",
+                        "Dealer Used": dealer_used.get_text(strip=True) if dealer_used else "N/A",
+                        "Dealer New": dealer_new.get_text(strip=True) if dealer_new else "N/A",
+                        "Year": year if year else "N/A",
+                        "Odometer": odometer if odometer else "N/A",
+                        "State": state if state else "N/A"
+                    })
+
             else:
                 print(f"The URL {url} returned status code {response.status_code}. It may be blocked.")
         
@@ -65,6 +75,22 @@ def main():
             print(f"Error reaching {url}: {e}")
         
         time.sleep(2)
-    
+
+    # Write the data to a CSV file with line-by-line formatting
+    with open('truck_data.csv', 'w', newline='', encoding='utf-8') as output_file:
+        writer = csv.writer(output_file)
+        for data in all_data:
+            writer.writerow([f"Name: {data['Name']}"])
+            writer.writerow([f"Categories: {data['Categories']}"])
+            writer.writerow([f"Dealer ID: {data['Dealer ID']}"])
+            writer.writerow([f"Dealer Used: {data['Dealer Used']}"])
+            writer.writerow([f"Dealer New: {data['Dealer New']}"])
+            writer.writerow([f"Year: {data['Year']}"])
+            writer.writerow([f"Odometer: {data['Odometer']}"])
+            writer.writerow([f"State: {data['State']}"])
+            writer.writerow([])  # Blank line between records
+
+    print("Data has been exported to truck_data.csv")
+
 if __name__ == "__main__":
     main()
